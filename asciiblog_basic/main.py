@@ -18,6 +18,7 @@ class Handler(webapp2.RequestHandler):
     def render(self, template, **kw):
         self.write(self.render_str(template, **kw))
 
+#ASCII Blog Handler
 class MainPage(Handler):
     def render_front(self, title="", art="", error=""):
         self.render("front.html", title=title, art=art, error=error)
@@ -29,10 +30,10 @@ class MainPage(Handler):
         art = self.request.get("art")
 
         if title and art:
-            self.write("Thanks")
+            self.write("Thanks!")
         else:
             error = "we need both a title and some artwork!"
-            self.render_front(error = error)
+            self.render_front(title, art, error)
 
         
 app = webapp2.WSGIApplication([('/', MainPage)
