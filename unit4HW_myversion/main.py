@@ -45,8 +45,8 @@ class BlogHandler(webapp2.RequestHandler):
         self.response.out.write(*a,**kw)
         
     def render_str(self, template, **params):
-        params['user'] = self.user
-        return render_str(template, **params)
+        t = jinja_env.get_template(template)
+        return t.render(params)
 
     def render(self, template, **kw):
         self.write(self.render_str(template, **kw))
@@ -104,13 +104,13 @@ class Users(db.Model):
 
     @classmethod
     def by_name(cls, username):
-        user = GqlQuery("SELECT * FROM Users WHERE user = :1", username)
-        u = user.get(username)
+        user = db.GqlQuery("SELECT * FROM Users WHERE user = :1", username)
+        u = user.get()
         return u
     @classmethod
     def register(cls, username, password, email):
         pw_hash = make_pw_hash(username, password)
-        return User(name = name,
+        return cls(name = username,
                     pw_hash = pw_hash,
                     email = email)
     @classmethod
@@ -140,26 +140,26 @@ class Signup(BlogHandler):
                       password = self.password,
                       email = self.email)
 
-        if not valid_username(username):
+        if not valid_username(self.username):
             params['error_username'] = "That's not a valid username."
             have_error = True
 
-        if Users.by_name(username) == username:
+        if Users.by_name(self.username) == self.username:
             params['error_username'] = "That username is used already, select a different one."
             have_error = True
 
-        if not valid_password(password):
+        if not valid_password(self.password):
             params['error_password'] = "That wasn't a valid password."
             have_error = True
-        elif password != verify:
+        elif self.password != self.verify:
             params['error_verify'] = "Your passwords didn't match."
             have_error = True
 
-        if not valid_email(email):
+        if not valid_email(self.email):
             params['error_email'] = "That's not a valid email."
             have_error = True
               
-        self.response.headers.add_header('Set-Cookie', 'user=%s' % username)
+        ##self.response.headers.add_header('Set-Cookie', 'user=%s' % self.username)
 
         if have_error:
             self.render('signup-form.html', **params)
