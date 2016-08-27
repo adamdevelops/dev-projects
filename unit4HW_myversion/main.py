@@ -13,6 +13,10 @@ template_dir = os.path.join(os.path.dirname(__file__), 'templates')
 jinja_env = jinja2.Environment(loader = jinja2.FileSystemLoader(template_dir),
                                autoescape = True)
 
+def render_str(template, **params):
+    t = jinja_env.get_template(template)
+    return t.render(params)
+
 #Secret Salt
 SECRET = 'imsosecret'
 
@@ -45,8 +49,8 @@ class BlogHandler(webapp2.RequestHandler):
         self.response.out.write(*a,**kw)
         
     def render_str(self, template, **params):
-        t = jinja_env.get_template(template)
-        return t.render(params)
+        params['user'] = self.user
+        return render_str(template, **params)
 
     def render(self, template, **kw):
         self.write(self.render_str(template, **kw))
@@ -70,7 +74,7 @@ class BlogHandler(webapp2.RequestHandler):
     def initialize(self, *a, **kw):
         webapp2.RequestHandler.initialize(self, *a, **kw)
         uid = self.read_secure_cookie('user_id')
-        self.user = uid and User.by_id(int(uid))
+        self.user = uid and Users.by_id(int(uid))
 
 ##### user stuff
 def make_salt(length = 5):
@@ -91,22 +95,22 @@ def users_key(group = 'default'):
     return db.Key.from_path('users', group)
 
 class Users(db.Model):
-    user = db.StringProperty(required = True)
-    user_id = db.StringProperty(required = True)
+    user = db.StringProperty()
     pw_hash = db.StringProperty(required = True)
     email = db.StringProperty()
     created = db.DateTimeProperty(auto_now_add = True)
-    logged = db.StringProperty(required = True)
+    logged = db.StringProperty()
 
     @classmethod
     def by_id(cls, uid):
-        return Users.get_by_id()
+        return Users.get_by_id(uid)
 
     @classmethod
     def by_name(cls, username):
         user = db.GqlQuery("SELECT * FROM Users WHERE user = :1", username)
         u = user.get()
         return u
+    
     @classmethod
     def register(cls, username, password, email):
         pw_hash = make_pw_hash(username, password)
@@ -182,8 +186,8 @@ class Register(Signup):
 #Welcome Page for signed in user Handler
 class Welcome(BlogHandler):
     def get(self):
-        self.render('welcome.html', username = self.username)
         
+        self.render('welcome.html', username = self.username)
 
         
 app = webapp2.WSGIApplication([('/', MainPage),
