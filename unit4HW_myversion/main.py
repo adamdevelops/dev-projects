@@ -45,6 +45,7 @@ def check_secure_val(h):
 
 #Blog Handler
 class BlogHandler(webapp2.RequestHandler):
+    #username = "apples"
     def write(self, *a, **kw):
         self.response.out.write(*a,**kw)
         
@@ -75,6 +76,7 @@ class BlogHandler(webapp2.RequestHandler):
         webapp2.RequestHandler.initialize(self, *a, **kw)
         uid = self.read_secure_cookie('user_id')
         self.user = uid and Users.by_id(int(uid))
+    
 
 ##### user stuff
 def make_salt(length = 5):
@@ -90,17 +92,72 @@ def valid_pw(name, password, h):
     salt = h.split(',')[0]
     return h == make_pw_hash(name, password, salt)
 
+##### blog stuff
+
+def blog_key(name = 'default'):
+    return db.Key.from_path('blogs', name)
+
+class Post(db.Model):
+    subject = db.StringProperty(required = True)
+    content = db.TextProperty(required = True)
+    created = db.DateTimeProperty(auto_now_add = True)
+    last_modified = db.DateTimeProperty(auto_now = True)
+
+    def render(self):
+        self._render_text = self.content.replace('\n', '<br>')
+        return render_str("post.html", p = self)
+
+class BlogFront(BlogHandler):
+    def get(self):
+        posts = greetings = Post.all().order('-created')
+        self.render('front.html', posts = posts)
+
+class PostPage(BlogHandler):
+    def get(self, post_id):
+        key = db.Key.from_path('Post', int(post_id), parent=blog_key())
+        post = db.get(key)
+
+        if not post:
+            self.error(404)
+            return
+
+        self.render("permalink.html", post = post)
+
+class NewPost(BlogHandler):
+    def get(self):
+        if self.user:
+            self.render("newpost.html")
+        else:
+            self.redirect("/login")
+
+    def post(self):
+        if not self.user:
+            self.redirect('/blog')
+
+        subject = self.request.get('subject')
+        content = self.request.get('content')
+
+        if subject and content:
+            p = Post(parent = blog_key(), subject = subject, content = content)
+            p.put()
+            self.redirect('/blog/%s' % str(p.key().id()))
+        else:
+            error = "subject and content, please!"
+            self.render("newpost.html", subject=subject, content=content, error=error)
+
+
 #Key created to have the option of users split into groups
 def users_key(group = 'default'):
     return db.Key.from_path('users', group)
 
+#Database functions and user objects
 class Users(db.Model):
     user = db.StringProperty()
     pw_hash = db.StringProperty(required = True)
     email = db.StringProperty()
     created = db.DateTimeProperty(auto_now_add = True)
     logged = db.StringProperty()
-
+    
     @classmethod
     def by_id(cls, uid):
         return Users.get_by_id(uid)
@@ -114,9 +171,10 @@ class Users(db.Model):
     @classmethod
     def register(cls, username, password, email):
         pw_hash = make_pw_hash(username, password)
-        return cls(name = username,
+        return cls(username = username,
                     pw_hash = pw_hash,
-                    email = email)
+                    email = email)    
+    
     @classmethod
     def login(cls, username, password):
         u = cls.by_name(username)
@@ -125,17 +183,21 @@ class Users(db.Model):
 
 class MainPage(BlogHandler):
     def get(self):
-        self.write("You are at the Main Page")
+        self.write('You are at the Main Page')
 
 #Signup Page Handler
 class Signup(BlogHandler):
+    
     def get(self):
         self.render("signup-form.html")
     def post(self):
-        self.response.headers['Content-Type'] = 'text/plain'
-                         
+        self.response.headers['Content-Type'] = 'text/plain'             
+
         have_error = False
         self.username = self.request.get('username')
+
+        #bloghandlerUser.username = self.username
+        
         self.password = self.request.get('password')
         self.verify = self.request.get('verify')
         self.email = self.request.get('email')
@@ -186,12 +248,15 @@ class Register(Signup):
 #Welcome Page for signed in user Handler
 class Welcome(BlogHandler):
     def get(self):
-        
-        self.render('welcome.html', username = self.username)
+        username = self.request.get('self.username')
+        self.write(username)
+        self.render('welcome.html', username = username)
 
         
 app = webapp2.WSGIApplication([('/', MainPage),
                               ('/signup', Register),
                               ('/welcome', Welcome),
+                               ('/login', Login),
+                               ('/logout', Logout),
                                ],
                               debug=True)
