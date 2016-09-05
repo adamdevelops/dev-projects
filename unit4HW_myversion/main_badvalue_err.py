@@ -82,7 +82,7 @@ def render_post(response, post):
 
 class MainPage(BlogHandler):
     def get(self):
-        self.write('You are at the Main Page. Type in /signup to go to the signup page in the existing URL above')
+        self.write('You are at the Main Page')
 
 ##### user stuff
 def make_salt(length = 5):
