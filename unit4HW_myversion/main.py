@@ -34,6 +34,9 @@ USER_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
 def valid_username(username):
     return username and USER_RE.match(username)
 
+def existing_user(username):
+    return username and Users.by_name(username)
+
 PASS_RE = re.compile(r"^.{3,20}$")
 def valid_password(password):
     return password and PASS_RE.match(password)
@@ -42,9 +45,10 @@ EMAIL_RE  = re.compile(r'^[\S]+@[\S]+\.[\S]+$')
 def valid_email(email):
     return not email or EMAIL_RE.match(email)
 
+
 #Blog Handler
 class BlogHandler(webapp2.RequestHandler):
-    #username = "apples"
+    
     def write(self, *a, **kw):
         self.response.out.write(*a,**kw)
         
@@ -82,9 +86,11 @@ def render_post(response, post):
 
 class MainPage(BlogHandler):
     def get(self):
-        self.write('You are at the Main Page. Type in /signup to go to the signup page in the existing URL above')
+        self.write('You are at the Main Page. Used for debugging purposes'
+                   '<br>Click on: <br><a href="/signup">/signup</a> to go to the signup page'
+                   '<br> <a href="/login">/login </a> to go to the login page')
 
-##### user stuff
+##### Password Hashing Algorithm
 def make_salt(length = 5):
     return ''.join(random.choice(letters) for x in xrange(length))
 
@@ -102,7 +108,7 @@ def valid_pw(name, password, h):
 def users_key(group = 'default'):
     return db.Key.from_path('users', group)
 
-#Database functions and user objects
+#Database model functions and user objects
 class Users(db.Model):
     name = db.StringProperty(required = True)
     pw_hash = db.StringProperty(required = True)
@@ -112,7 +118,8 @@ class Users(db.Model):
     
     @classmethod
     def by_id(cls, uid):
-        return Users.get_by_id(uid, parent = users_key())
+        u = Users.get_by_id(uid, parent = users_key())
+        return u.name
 
     @classmethod
     def by_name(cls, name):
@@ -134,11 +141,12 @@ class Users(db.Model):
         if u and valid_pw(username, password, u.pw_hash):
             return u
 
-##### blog stuff
+##### blog stuff  #####
 
 def blog_key(name = 'default'):
     return db.Key.from_path('blogs', name)
 
+#Database model for the blog posts
 class Post(db.Model):
     subject = db.StringProperty(required = True)
     content = db.TextProperty(required = True)
@@ -149,11 +157,13 @@ class Post(db.Model):
         self._render_text = self.content.replace('\n', '<br>')
         return render_str("post.html", p = self)
 
+#Blog Front class is the front page where all the blog posts made by users is posted.
 class BlogFront(BlogHandler):
     def get(self):
         posts = greetings = Post.all().order('-created')
         self.render('front.html', posts = posts)
 
+#Post Page class used to show the individual post the user submitted to the blog.
 class PostPage(BlogHandler):
     def get(self, post_id):
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
@@ -164,7 +174,9 @@ class PostPage(BlogHandler):
             return
 
         self.render("permalink.html", post = post)
-
+        
+#New Post class used to create a new blog post on the blog using a form
+#that requires a subject and content.
 class NewPost(BlogHandler):
     def get(self):
         if self.user:
@@ -187,23 +199,26 @@ class NewPost(BlogHandler):
             error = "subject and content, please!"
             self.render("newpost.html", subject=subject, content=content, error=error)
 
+##### end of blog stuff  #####
 
 
-#Signup Page Handler
-class Signup(BlogHandler):
-    #bloghandler = BlogHandler()
-    
+#Signup Class used to handle the signup page form by extracting the credentials
+#of the user and giving feedback on whether those credentials are correct.
+class Signup(BlogHandler):   
     def get(self):
         self.render("signup-form.html")
     def post(self):
-        #self.response.headers['Content-Type'] = 'text/plain'             
-
+        #Form Error variable
         have_error = False
+        
+        #New Users crendentials
         self.username = self.request.get('username')
         self.password = self.request.get('password')
         self.verify = self.request.get('verify')
         self.email = self.request.get('email')
 
+        #Error checking of the signup form data. Checks for
+        #valid username, password, email, and if the user exists already.
         params = dict(username = self.username,
                       email = self.email)
 
@@ -211,9 +226,9 @@ class Signup(BlogHandler):
             params['error_username'] = "That's not a valid username."
             have_error = True
 
-##        if Users.by_name(self.username) == self.username:
-##            params['error_username'] = "That username is used already, select a different one."
-##            have_error = True
+        if existing_user(self.username):
+            params['error_username'] = "That username is already exists, select a different one."
+            have_error = True
 
         if not valid_password(self.password):
             params['error_password'] = "That wasn't a valid password."
@@ -225,8 +240,8 @@ class Signup(BlogHandler):
         if not valid_email(self.email):
             params['error_email'] = "That's not a valid email."
             have_error = True
-              
-        ##self.response.headers.add_header('Set-Cookie', 'user=%s' % self.username)
+             
+        #self.response.headers.add_header('Set-Cookie', 'user=%s' % str(self.username)) ---TEST CODE
 
         if have_error:
             self.render('signup-form.html', **params)
@@ -237,37 +252,76 @@ class Signup(BlogHandler):
         raise NotImplementedError
 
 
-
+#Register Class used to input the new user in the database
+#and login them into the blog site.
 class Register(Signup):
     def done(self):
-##        u = Users.register(self.username, self.password, self.email)
-##        print (u.put())
-##
-##        self.login(u)        
-##        self.redirect('/welcome')
-        #make sure the user doesn't already exist
-        u = Users.by_name(self.username)
+        u = Users.register(self.username, self.password, self.email)
+        u.put()
+
+        self.login(u)        
+        self.redirect('/blog')
+
+#Login Class for users that have been registered already.
+class Login(BlogHandler):
+    def get(self):
+        self.render('login-form.html')
+    def post(self):
+        username = self.request.get('username')
+        password = self.request.get('password')
+
+        u = Users.login(username, password)
+
         if u:
-            msg = 'That user already exists.'
-            self.render('signup-form.html', error_username = msg)
-        else:
-            u = Users.register(self.username, self.password, self.email)
-            u.put()
-
-            print (self.login(u))
+            self.login(u)
             self.redirect('/welcome')
+        else:
+            msg = 'Invalid login'
+            self.render('login-form.html', error = msg)
 
-#Welcome Page for signed in user Handler
+class Logout(BlogHandler):
+    def get(self):
+        self.logout()
+        self.redirect('/login')
+        
+#Welcome Class used to display the welcome page to a new user.
 class Welcome(BlogHandler):
     def get(self):
-        username = self.request.get('self.username')
-        self.write(username)
-        self.render('welcome.html', username = username)
+##        u = self.request.cookie.get('user_id')
+##        uid = check_secure_value(u)
+##        username = Users.by_id(str(uid))
+##        self.render('welcome.html', username = username)
 
+        if self.user:
+            self.render('welcome.html', username = self.user)
+        else:
+            self.redirect('/signup')
+
+class NewPassword(BlogHandler):
+    def get(self):
+        self.render('change-password-form.html')
+    def post(self):
+        self.username = self.request.get('username')
+        self.password = self.request.get('password')
+        self.verify = self.request.get('verify')
+
+        u = Users.login(self.username, self.password)
+
+        if u:
+            self.login(u)
+            self.redirect('/welcome')
+        else:
+            msg = 'Invalid login'
+            self.render('login-form.html', error = msg)
         
 app = webapp2.WSGIApplication([('/', MainPage),
                               ('/signup', Register),
+                              ('/login', Login),
+                               ('/logout', Logout),
                               ('/welcome', Welcome),
                                ('/blog/?', BlogFront),
+                               ('/blog/([0-9]+)', PostPage),
+                               ('/blog/newpost', NewPost),
+                               ('/changepass', NewPassword),
                                ],
                               debug=True)
