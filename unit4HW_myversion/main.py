@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import jinja2
 import webapp2
-
+from users import *
 from google.appengine.ext import db
 
 template_dir = os.path.join(os.path.dirname(__file__), 'templates')
@@ -19,32 +19,6 @@ SECRET = 'imsosecret'
 def render_str(template, **params):
     t = jinja_env.get_template(template)
     return t.render(params)
-
-# Cookie Hashing Alogirithm
-def make_secure_val(s):
-    return "%s|%s" % (s, hmac.new(SECRET, s).hexdigest())
-
-def check_secure_val(h):
-    val = h.split('|')[0]
-    if h == make_secure_val(val):
-        return val 
-
-#Valid Input Field Algorithm
-USER_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
-def valid_username(username):
-    return username and USER_RE.match(username)
-
-def existing_user(username):
-    return username and Users.by_name(username)
-
-PASS_RE = re.compile(r"^.{3,20}$")
-def valid_password(password):
-    return password and PASS_RE.match(password)
-
-EMAIL_RE  = re.compile(r'^[\S]+@[\S]+\.[\S]+$')
-def valid_email(email):
-    return not email or EMAIL_RE.match(email)
-
 
 #Blog Handler
 class BlogHandler(webapp2.RequestHandler):
@@ -88,68 +62,16 @@ class MainPage(BlogHandler):
     def get(self):
         self.write('You are at the Main Page. Used for debugging purposes'
                    '<br>Click on: <br><a href="/signup">/signup</a> to go to the signup page'
-                   '<br> <a href="/login">/login </a> to go to the login page')
-
-##### Password Hashing Algorithm
-def make_salt(length = 5):
-    return ''.join(random.choice(letters) for x in xrange(length))
-
-def make_pw_hash(name, pw, salt = None):
-    if not salt:
-        salt = make_salt()
-    h = hashlib.sha256(name + pw + salt).hexdigest()
-    return '%s,%s' % (salt, h)
-
-def valid_pw(name, password, h):
-    salt = h.split(',')[0]
-    return h == make_pw_hash(name, password, salt)
-
-#Key created to have the option of users split into groups
-def users_key(group = 'default'):
-    return db.Key.from_path('users', group)
-
-#Database model functions and user objects
-class Users(db.Model):
-    name = db.StringProperty(required = True)
-    pw_hash = db.StringProperty(required = True)
-    email = db.StringProperty()
-    created = db.DateTimeProperty(auto_now_add = True)
-    logged = db.StringProperty()
-    
-    @classmethod
-    def by_id(cls, uid):
-        u = Users.get_by_id(uid, parent = users_key())
-        return u.name
-
-    @classmethod
-    def by_name(cls, name):
-        #user = db.GqlQuery("SELECT * FROM Users WHERE user = :1", username)
-        u = Users.all().filter('name =', name).get()
-        return u
-    
-    @classmethod
-    def register(cls, username, password, email = None):
-        pw_hash = make_pw_hash(username, password)
-        return cls(parent = users_key(),
-                   name = username,
-                    pw_hash = pw_hash,
-                    email = email)    
-    
-    @classmethod
-    def login(cls, username, password):
-        u = cls.by_name(username)
-        if u and valid_pw(username, password, u.pw_hash):
-            return u
-
-##### blog stuff  #####
-
-def blog_key(name = 'default'):
-    return db.Key.from_path('blogs', name)
+                   '<br> <a href="/login">/login </a> to go to the login page')        
 
 #Database model for the blog posts
 class Post(db.Model):
     subject = db.StringProperty(required = True)
     content = db.TextProperty(required = True)
+    author = db.StringProperty()
+    author_uid = db.StringProperty()
+    likes = db.IntegerProperty(default = 0)
+    post_id = db.StringProperty()
     created = db.DateTimeProperty(auto_now_add = True)
     last_modified = db.DateTimeProperty(auto_now = True)
 
@@ -157,11 +79,22 @@ class Post(db.Model):
         self._render_text = self.content.replace('\n', '<br>')
         return render_str("post.html", p = self)
 
+class Comment(db.Model):
+    content = db.TextProperty(required=True)
+    post = db.StringProperty(required=True)
+    created = db.DateTimeProperty(auto_now_add=True)
+    created_by = db.StringProperty(required=False)
+    last_modified = db.DateTimeProperty(auto_now=True)
+
+    def render(self):
+        self._render_text = self.content.replace('\n', '<br>')
+        return render_str("newcomment.html", c=self)
+
 #Blog Front class is the front page where all the blog posts made by users is posted.
 class BlogFront(BlogHandler):
     def get(self):
-        posts = greetings = Post.all().order('-created')
-        self.render('front.html', posts = posts)
+        posts = Post.all().order('-created')
+        self.render('front.html', posts = posts, username = self.user)
 
 #Post Page class used to show the individual post the user submitted to the blog.
 class PostPage(BlogHandler):
@@ -173,7 +106,42 @@ class PostPage(BlogHandler):
             self.error(404)
             return
 
-        self.render("permalink.html", post = post)
+        self.render("permalink.html", post = post, post_id = int(post_id))
+
+class EditPostPage(BlogHandler):
+    def get(self, post_id):
+        key = db.Key.from_path('Post', int(post_id), parent=blog_key())
+        post = db.get(key)
+
+        if not post:
+            self.error(404)
+            return
+
+        self.render("edit-post.html", post = post, post_id = int(post_id))
+
+    def post(self):
+        if not self.user:
+            self.redirect('/blog')
+
+        subject = self.request.get('subject')
+        content = self.request.get('content')
+        a = self.request.cookies.get('user_id')
+        uid = check_secure_val(a)
+        author = Users.by_id(int(uid))
+        
+        if subject and content:
+            p = Post(
+                parent = blog_key(),
+                subject = subject,
+                content = content,
+                author = author,
+                author_uid = str(uid),
+                likes = 0)
+            p.put()
+            self.redirect('/blog/%s' % str(p.key().id()))
+        else:
+            error = "subject and content, please!"
+            self.render("newpost.html", subject=subject, content=content, error=error)
         
 #New Post class used to create a new blog post on the blog using a form
 #that requires a subject and content.
@@ -190,9 +158,18 @@ class NewPost(BlogHandler):
 
         subject = self.request.get('subject')
         content = self.request.get('content')
-
+        a = self.request.cookies.get('user_id')
+        uid = check_secure_val(a)
+        author = Users.by_id(int(uid))
+        
         if subject and content:
-            p = Post(parent = blog_key(), subject = subject, content = content)
+            p = Post(
+                parent = blog_key(),
+                subject = subject,
+                content = content,
+                author = author,
+                author_uid = str(uid),
+                likes = 0)
             p.put()
             self.redirect('/blog/%s' % str(p.key().id()))
         else:
@@ -287,9 +264,7 @@ class Logout(BlogHandler):
 #Welcome Class used to display the welcome page to a new user.
 class Welcome(BlogHandler):
     def get(self):
-##        u = self.request.cookie.get('user_id')
-##        uid = check_secure_value(u)
-##        username = Users.by_id(str(uid))
+
 ##        self.render('welcome.html', username = username)
 
         if self.user:
@@ -322,6 +297,7 @@ app = webapp2.WSGIApplication([('/', MainPage),
                                ('/blog/?', BlogFront),
                                ('/blog/([0-9]+)', PostPage),
                                ('/blog/newpost', NewPost),
-                               ('/changepass', NewPassword),
+                               ('/blog/edit/([0-9]+)', EditPostPage),
+                               ('/blog/comment/?', Comment),                            
                                ],
                               debug=True)

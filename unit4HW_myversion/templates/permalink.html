@@ -2,4 +2,14 @@
 
 {% block content %}
   {{post.render() | safe}}
+  {{post_id}}
+  <br>
+  {% if self.user != post.author %}
+		<input type="submit" value="Like">
+	{% endif %}
+	<br>
+	<a class="edit-button" href="/blog/edit/?={{post.key().id()}}">Edit</a>
+	<br>
+	<a href="/blog/comment/?={{post.key().id()}}">Comment</a>
+	</div>
 {% endblock %}

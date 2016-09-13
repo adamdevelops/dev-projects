@@ -40,6 +40,10 @@ h2 {
     color: red;
 }
 
+.new-post{
+	margin-bottom: 30px;
+}
+
 label {
   display: block;
   font-size: 20px;
@@ -65,6 +69,11 @@ textarea {
 
 input[type=submit] {
   font-size: 24px;
+}
+
+.edit-button {
+	position: abosolute;
+	left: 1000px;
 }
 
 .main-title {
@@ -101,5 +110,6 @@ input[type=submit] {
 
 .post-content {
     margin-top: 5px;
+	font-style: monospace;
 }
 
