@@ -90,17 +90,6 @@ class Comment(db.Model):
         self._render_text = self.content.replace('\n', '<br>')
         return render_str("comment.html", c = self)
 
-class CommentSection(BlogHandler):
-    def get(self, post_id):
-        posts = Post.all().order('-created')
-        self.render('permalink.html', posts = posts, username = self.user)
-
-    def post(self):
-        key = db.Key.from_path('Post', int(post_id), parent=blog_key())
-        post = db.get(key)
-
-
-
 class BlogFront(BlogHandler):
     '''Blog Front class is the front page where all the blog posts made by
     users is posted.'''
@@ -114,24 +103,26 @@ class PostPage(BlogHandler):
     def get(self, post_id):
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
-        comments = db.GqlQuery("SELECT * FROM Comment WHERE post_id = %s ORDER BY created DESC" % int(post_id))
+        #comments = db.GqlQuery("SELECT * FROM Comment WHERE post_id = %s ORDER BY created DESC" % int(post_id))
+        comments = Comment.all().order('-created')
+
         if not post:
             self.error(404)
             return
 
         self.render("permalink.html", post = post, post_id = int(post_id), comments = comments, username = self.user)
 
-    def post(self):
-        post_id = self.request.get("post")
+    def post(self, post_id):
+        #post_id = self.request.get("post")
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
 
-        comment = self.request.get('comment')
+        content = self.request.get('content')
 
         c = Comment(
                 parent = blog_key(),
-                comment = comment,
-                post_id = int(post_id),
+                content = content,
+                post_id = str(post_id),
                 author = self.user
                 )
         c.put()
