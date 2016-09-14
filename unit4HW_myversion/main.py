@@ -90,14 +90,16 @@ class Comment(db.Model):
         self._render_text = self.content.replace('\n', '<br>')
         return render_str("newcomment.html", c=self)
 
-#Blog Front class is the front page where all the blog posts made by users is posted.
+
 class BlogFront(BlogHandler):
+    #Blog Front class is the front page where all the blog posts made by users is posted.
     def get(self):
         posts = Post.all().order('-created')
         self.render('front.html', posts = posts, username = self.user)
 
-#Post Page class used to show the individual post the user submitted to the blog.
 class PostPage(BlogHandler):
+    #Post Page class used to show the individual post the user submitted to the blog.
+
     def get(self, post_id):
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
@@ -118,7 +120,7 @@ class EditPostPage(BlogHandler):
             self.error(404)
             return
 
-        self.render("edit-post.html", post = post, post_id = int(post_id))
+        self.render("edit-post.html", post = post)
 
     def post(self):
         if not self.user:
@@ -142,9 +144,26 @@ class EditPostPage(BlogHandler):
         else:
             error = "subject and content, please!"
             self.render("edit-post.html", subject=subject, content=content, error=error)
+
+class DeletePostPage(BlogHandler):
+    def get(self):
+        self.render("delete-post.html")
+
+    def post(self):
+        if not self.user:
+            self.redirect('/blog')
+
+        delete_confirm = self.request.get('delete_confirm')
+
+        post_id = self.request.get("post")
+        key = db.Key.from_path('Post', int(post_id), parent=blog_key())
+        post = db.get(key)
+        post.delete()
+        self.redirect('/blog')
+                          
+class NewPost(BlogHandler):
 #New Post class used to create a new blog post on the blog using a form
 #that requires a subject and content.
-class NewPost(BlogHandler):
     def get(self):
         if self.user:
             self.render("newpost.html")
@@ -288,7 +307,7 @@ class NewPassword(BlogHandler):
             msg = 'Invalid login'
             self.render('login-form.html', error = msg)
 
-           #('/blog/edit/([0-9]+)', EditDonePostPage), 
+           #('/blog/comment/?', Comment),  
         
 app = webapp2.WSGIApplication([('/', MainPage),
                               ('/signup', Register),
@@ -298,7 +317,7 @@ app = webapp2.WSGIApplication([('/', MainPage),
                                ('/blog/?', BlogFront),
                                ('/blog/([0-9]+)', PostPage),
                                ('/blog/newpost', NewPost),
-                               ('/blog/edit?', EditPostPage),                               
-                               ('/blog/comment/?', Comment),                            
+                               ('/blog/edit?', EditPostPage),
+                               ('/blog/delete?', DeletePostPage),                                                          
                                ],
                               debug=True)

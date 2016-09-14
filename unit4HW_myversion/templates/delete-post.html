@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h2>Delete Post</h2>
+  
+
+    <form method="post">
+      <label>
+        <div>Are you sure you want to delete your post?</div>        
+      </label>
+
+      <label>
+        <div>Confirmation</div>
+        <input type="text" name="delete_confirm" >
+      </label>
+
+      <input type="submit">
+    </form>
+{% endblock %}
