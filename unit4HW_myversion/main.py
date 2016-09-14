@@ -81,36 +81,67 @@ class Post(db.Model):
 
 class Comment(db.Model):
     content = db.TextProperty(required=True)
-    post = db.StringProperty(required=True)
+    post_id = db.StringProperty(required=True)
     created = db.DateTimeProperty(auto_now_add=True)
-    created_by = db.StringProperty(required=False)
+    author = db.StringProperty()
     last_modified = db.DateTimeProperty(auto_now=True)
 
     def render(self):
         self._render_text = self.content.replace('\n', '<br>')
-        return render_str("newcomment.html", c=self)
+        return render_str("comment.html", c = self)
+
+class CommentSection(BlogHandler):
+    def get(self, post_id):
+        posts = Post.all().order('-created')
+        self.render('permalink.html', posts = posts, username = self.user)
+
+    def post(self):
+        key = db.Key.from_path('Post', int(post_id), parent=blog_key())
+        post = db.get(key)
+
 
 
 class BlogFront(BlogHandler):
-    #Blog Front class is the front page where all the blog posts made by users is posted.
+    '''Blog Front class is the front page where all the blog posts made by
+    users is posted.'''
     def get(self):
         posts = Post.all().order('-created')
         self.render('front.html', posts = posts, username = self.user)
 
 class PostPage(BlogHandler):
-    #Post Page class used to show the individual post the user submitted to the blog.
-
+    '''Post Page class used to show the individual post the user
+    submitted to the blog. Along with comments on the post by other users.'''
     def get(self, post_id):
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
-
+        comments = db.GqlQuery("SELECT * FROM Comment WHERE post_id = %s ORDER BY created DESC" % int(post_id))
         if not post:
             self.error(404)
             return
 
-        self.render("permalink.html", post = post, post_id = int(post_id))
+        self.render("permalink.html", post = post, post_id = int(post_id), comments = comments, username = self.user)
 
+    def post(self):
+        post_id = self.request.get("post")
+        key = db.Key.from_path('Post', int(post_id), parent=blog_key())
+        post = db.get(key)
+
+        comment = self.request.get('comment')
+
+        c = Comment(
+                parent = blog_key(),
+                comment = comment,
+                post_id = int(post_id),
+                author = self.user
+                )
+        c.put()
+        self.redirect('/blog/%s' % str(post.key().id()))
+
+        
+        
 class EditPostPage(BlogHandler):
+    '''EditPost Page is used to edit an existing blog post by
+    its original author.'''
     def get(self):
         post_id = self.request.get("post")
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
@@ -120,7 +151,7 @@ class EditPostPage(BlogHandler):
             self.error(404)
             return
 
-        self.render("edit-post.html", post = post)
+        self.render("edit-post.html", post = post, username = self.user)
 
     def post(self):
         if not self.user:
@@ -146,8 +177,10 @@ class EditPostPage(BlogHandler):
             self.render("edit-post.html", subject=subject, content=content, error=error)
 
 class DeletePostPage(BlogHandler):
+    '''DeletePost Page is used to delete a user's blog posts from
+    the Blog's database.'''
     def get(self):
-        self.render("delete-post.html")
+        self.render("delete-post.html", username = self.user)
 
     def post(self):
         if not self.user:
@@ -162,11 +195,11 @@ class DeletePostPage(BlogHandler):
         self.redirect('/blog')
                           
 class NewPost(BlogHandler):
-#New Post class used to create a new blog post on the blog using a form
-#that requires a subject and content.
+    '''New Post class used to create a new blog post on the blog using a form
+    that requires a subject and content.'''
     def get(self):
         if self.user:
-            self.render("newpost.html")
+            self.render("newpost.html", username = self.user)
         else:
             self.redirect("/login")
 
