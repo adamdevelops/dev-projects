@@ -109,7 +109,8 @@ class PostPage(BlogHandler):
         self.render("permalink.html", post = post, post_id = int(post_id))
 
 class EditPostPage(BlogHandler):
-    def get(self, post_id):
+    def get(self):
+        post_id = self.request.get("post")
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
 
@@ -128,21 +129,19 @@ class EditPostPage(BlogHandler):
         a = self.request.cookies.get('user_id')
         uid = check_secure_val(a)
         author = Users.by_id(int(uid))
+
+        post_id = self.request.get("post")
+        key = db.Key.from_path('Post', int(post_id), parent=blog_key())
+        post = db.get(key)
         
         if subject and content:
-            p = Post(
-                parent = blog_key(),
-                subject = subject,
-                content = content,
-                author = author,
-                author_uid = str(uid),
-                likes = 0)
-            p.put()
-            self.redirect('/blog/%s' % str(p.key().id()))
+            post.subject = subject
+            post.content = content
+            post.put()
+            self.redirect('/blog/%s' % str(post.key().id()))
         else:
             error = "subject and content, please!"
-            self.render("newpost.html", subject=subject, content=content, error=error)
-        
+            self.render("edit-post.html", subject=subject, content=content, error=error)
 #New Post class used to create a new blog post on the blog using a form
 #that requires a subject and content.
 class NewPost(BlogHandler):
@@ -288,6 +287,8 @@ class NewPassword(BlogHandler):
         else:
             msg = 'Invalid login'
             self.render('login-form.html', error = msg)
+
+           #('/blog/edit/([0-9]+)', EditDonePostPage), 
         
 app = webapp2.WSGIApplication([('/', MainPage),
                               ('/signup', Register),
@@ -297,7 +298,7 @@ app = webapp2.WSGIApplication([('/', MainPage),
                                ('/blog/?', BlogFront),
                                ('/blog/([0-9]+)', PostPage),
                                ('/blog/newpost', NewPost),
-                               ('/blog/edit/([0-9]+)', EditPostPage),
+                               ('/blog/edit?', EditPostPage),                               
                                ('/blog/comment/?', Comment),                            
                                ],
                               debug=True)
