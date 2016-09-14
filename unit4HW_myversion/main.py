@@ -81,7 +81,7 @@ class Post(db.Model):
 
 class Comment(db.Model):
     content = db.TextProperty(required=True)
-    post_id = db.StringProperty(required=True)
+    post_id = db.IntegerProperty(required=True)
     created = db.DateTimeProperty(auto_now_add=True)
     author = db.StringProperty()
     last_modified = db.DateTimeProperty(auto_now=True)
@@ -104,7 +104,7 @@ class PostPage(BlogHandler):
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
         #comments = db.GqlQuery("SELECT * FROM Comment WHERE post_id = %s ORDER BY created DESC" % int(post_id))
-        comments = Comment.all().order('-created')
+        comments = Comment.all().order('-created').filter('post_id =', int(post_id))
 
         if not post:
             self.error(404)
@@ -122,7 +122,7 @@ class PostPage(BlogHandler):
         c = Comment(
                 parent = blog_key(),
                 content = content,
-                post_id = str(post_id),
+                post_id = int(post_id),
                 author = self.user
                 )
         c.put()
