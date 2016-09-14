@@ -224,6 +224,7 @@ class NewPost(BlogHandler):
 #Signup Class used to handle the signup page form by extracting the credentials
 #of the user and giving feedback on whether those credentials are correct.
 class Signup(BlogHandler):   
+
     def get(self):
         self.render("signup-form.html")
     def post(self):
