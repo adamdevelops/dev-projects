@@ -2,22 +2,33 @@
 
 {% block content %}
   {{post.render() | safe}}
-  {{post_id}}
   <br>
-  {% if self.user != post.author %}
-		<input type="submit" value="Like">
+  <form method="post">
+  user:{{username}}
+  <br>
+  author:{{post.author}}
+  <br>
+  {% if username != post.author %}
+		{% if likes.liked == false or likes.liked_before == false %}
+			<input type="button" name="Like" value="Like">
+		{% else %}
+			<input type="button" name="Dislike" value="Dislike">
+		{% endif %}
 	{% endif %}
+	</form>
 	<br>
-	<a class="edit-button" href="/blog/edit?post={{post.key().id()}}">Edit</a>
-	<a class="delete-button" href="/blog/delete?post={{post.key().id()}}">Delete</a>
+	{% if username == post.author %}
+		<a class="edit-button" href="/blog/edit?post={{post.key().id()}}">Edit</a>
+		<a class="delete-button" href="/blog/delete?post={{post.key().id()}}">Delete</a>
+	{% endif %}
 	<br><br>
+	<form>
 	<h3><u>Comments:</u></h3>
 	<br>
 	{% for c in comments %}
 		{{c.render() | safe}}
 	{% endfor %}
 	<br>
-	<form method="post">
 		<textarea name="content"></textarea>
 		<br>
 		<input type="submit">

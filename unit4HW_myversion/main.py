@@ -90,6 +90,14 @@ class Comment(db.Model):
         self._render_text = self.content.replace('\n', '<br>')
         return render_str("comment.html", c = self)
 
+class Like(db.Model):
+    liked = db.BooleanProperty()
+    user = db.StringProperty()
+    post_id = db.IntegerProperty(required=True)
+    last_liked = db.DateTimeProperty(auto_now=True)
+    liked_before = db.BooleanProperty()
+
+    
 class BlogFront(BlogHandler):
     '''Blog Front class is the front page where all the blog posts made by
     users is posted.'''
@@ -105,20 +113,52 @@ class PostPage(BlogHandler):
         post = db.get(key)
         #comments = db.GqlQuery("SELECT * FROM Comment WHERE post_id = %s ORDER BY created DESC" % int(post_id))
         comments = Comment.all().order('-created').filter('post_id =', int(post_id))
-
+        likes = post.likes
+        
         if not post:
             self.error(404)
             return
 
-        self.render("permalink.html", post = post, post_id = int(post_id), comments = comments, username = self.user)
+        self.render("permalink.html", post = post, post_id = int(post_id), likes = likes, comments = comments, username = self.user)
 
     def post(self, post_id):
         #post_id = self.request.get("post")
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
 
-        content = self.request.get('content')
+        likes = Likes.all().filter('post_id =', int(post_id)).filter('user =', self.user)
 
+        #Likes
+
+        #first time like
+        if likes.liked_before == False:
+            post.likes += 1
+            l = Likes(
+                parent = blog_key(),
+                liked = True,
+                user = self.user,
+                post_id = int(post_id),
+                liked_before = True
+                )
+            l.put()
+
+        #Already liked
+        else:  
+            if likes.liked == True:   
+                 post.likes -= 1
+                 likes.liked = False
+                 likes.put()  
+                 post.put()   
+            else:                       
+                post.likes += 1
+                likes.liked = True
+                likes.put()   
+                post.put()       
+        
+        #Comments
+
+        content = self.request.get('content')
+        #Later add feature to send errors for submitting empty comments        
         c = Comment(
                 parent = blog_key(),
                 content = content,
@@ -128,8 +168,6 @@ class PostPage(BlogHandler):
         c.put()
         self.redirect('/blog/%s' % str(post.key().id()))
 
-        
-        
 class EditPostPage(BlogHandler):
     '''EditPost Page is used to edit an existing blog post by
     its original author.'''
@@ -157,7 +195,7 @@ class EditPostPage(BlogHandler):
         post_id = self.request.get("post")
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
-        
+
         if subject and content:
             post.subject = subject
             post.content = content
@@ -221,10 +259,9 @@ class NewPost(BlogHandler):
 ##### end of blog stuff  #####
 
 
-#Signup Class used to handle the signup page form by extracting the credentials
-#of the user and giving feedback on whether those credentials are correct.
 class Signup(BlogHandler):   
-
+    '''Signup Class used to handle the signup page form by extracting the credentials
+    of the user and giving feedback on whether those credentials are correct.'''
     def get(self):
         self.render("signup-form.html")
     def post(self):
@@ -272,9 +309,9 @@ class Signup(BlogHandler):
         raise NotImplementedError
 
 
-#Register Class used to input the new user in the database
-#and login them into the blog site.
 class Register(Signup):
+    '''Register Class used to input the new user in the database
+    and login them into the blog site.'''
     def done(self):
         u = Users.register(self.username, self.password, self.email)
         u.put()
@@ -282,8 +319,8 @@ class Register(Signup):
         self.login(u)        
         self.redirect('/blog')
 
-#Login Class for users that have been registered already.
 class Login(BlogHandler):
+    '''Login Class for users that have been registered already.'''
     def get(self):
         self.render('login-form.html')
     def post(self):
@@ -304,12 +341,9 @@ class Logout(BlogHandler):
         self.logout()
         self.redirect('/login')
         
-#Welcome Class used to display the welcome page to a new user.
 class Welcome(BlogHandler):
+    '''Welcome Class used to display the welcome page to a new user.'''
     def get(self):
-
-##        self.render('welcome.html', username = username)
-
         if self.user:
             self.render('welcome.html', username = self.user)
         else:
@@ -330,9 +364,7 @@ class NewPassword(BlogHandler):
             self.redirect('/welcome')
         else:
             msg = 'Invalid login'
-            self.render('login-form.html', error = msg)
-
-           #('/blog/comment/?', Comment),  
+            self.render('login-form.html', error = msg)            
         
 app = webapp2.WSGIApplication([('/', MainPage),
                               ('/signup', Register),
