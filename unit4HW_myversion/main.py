@@ -97,7 +97,7 @@ class Like(db.Model):
     last_liked = db.DateTimeProperty(auto_now=True)
     liked_before = db.BooleanProperty()
 
-    
+#Front Page of the Blog    
 class BlogFront(BlogHandler):
     '''Blog Front class is the front page where all the blog posts made by
     users is posted.'''
@@ -113,13 +113,15 @@ class PostPage(BlogHandler):
         post = db.get(key)
         #comments = db.GqlQuery("SELECT * FROM Comment WHERE post_id = %s ORDER BY created DESC" % int(post_id))
         comments = Comment.all().order('-created').filter('post_id =', int(post_id))
-        likes = post.likes
+        post_likes = post.likes
         
+        #likes = Likes.all().filter('post_id =', int(post_id)).filter('user =', self.user)
+
         if not post:
             self.error(404)
             return
 
-        self.render("permalink.html", post = post, post_id = int(post_id), likes = likes, comments = comments, username = self.user)
+        self.render("permalink.html", post = post, post_id = int(post_id), likes = post_likes, comments = comments, username = self.user)
 
     def post(self, post_id):
         #post_id = self.request.get("post")
@@ -127,6 +129,9 @@ class PostPage(BlogHandler):
         post = db.get(key)
 
         likes = Likes.all().filter('post_id =', int(post_id)).filter('user =', self.user)
+
+        like = self.request.get('like')
+        dislike = self.request.get('dislike')
 
         #Likes
 

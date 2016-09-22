@@ -4,10 +4,6 @@
   {{post.render() | safe}}
   <br>
   <form method="post">
-  user:{{username}}
-  <br>
-  author:{{post.author}}
-  <br>
   {% if username != post.author %}
 		{% if likes.liked == false or likes.liked_before == false %}
 			<input type="button" name="Like" value="Like">
@@ -34,6 +30,6 @@
 		<input type="submit">
 	</form>
 	<br>
-	<a href="/blog/comment/?={{post.key().id()}}">Comment</a>
+	<!-- <a href="/blog/comment/?={{post.key().id()}}">Comment</a> -->
 	</div>
 {% endblock %}
