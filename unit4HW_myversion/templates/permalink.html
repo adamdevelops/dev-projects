@@ -6,9 +6,9 @@
   <form method="post">
   {% if username != post.author %}
 		{% if likes.liked == false or likes.liked_before == false %}
-			<input type="button" name="Like" value="Like">
+			<input type="submit" name="Like" value="Like">
 		{% else %}
-			<input type="button" name="Dislike" value="Dislike">
+			<input type="submit" name="Dislike" value="Dislike">
 		{% endif %}
 	{% endif %}
 	</form>
@@ -29,7 +29,7 @@
 		<br>
 		<input type="submit">
 	</form>
-	<br>
+	<br> 
 	<!-- <a href="/blog/comment/?={{post.key().id()}}">Comment</a> -->
 	</div>
 {% endblock %}

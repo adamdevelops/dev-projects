@@ -115,20 +115,20 @@ class PostPage(BlogHandler):
         comments = Comment.all().order('-created').filter('post_id =', int(post_id))
         post_likes = post.likes
         
-        #likes = Likes.all().filter('post_id =', int(post_id)).filter('user =', self.user)
+        likes = Like.all().filter('post_id =', int(post_id)).filter('user =', self.user)
 
         if not post:
             self.error(404)
             return
 
-        self.render("permalink.html", post = post, post_id = int(post_id), likes = post_likes, comments = comments, username = self.user)
+        self.render("permalink.html", post = post, post_id = int(post_id), post_like = post_likes, likes = likes, comments = comments, username = self.user)
 
     def post(self, post_id):
         #post_id = self.request.get("post")
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
 
-        likes = Likes.all().filter('post_id =', int(post_id)).filter('user =', self.user)
+        likes = Like.all().filter('post_id =', int(post_id)).filter('user =', self.user)
 
         like = self.request.get('like')
         dislike = self.request.get('dislike')
